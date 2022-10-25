@@ -37,7 +37,8 @@ colour_dShredder = RGB(0/255,137/255,0/255)
 colour_dgRNA2 = RGB(0/255,137/255,0/255)
 
 colour_resistances = RGB(255/255,34/255,28/255)
-
+colour_load = RGB(137/255,95/255,85/255)
+colour_sexratio = RGB(255/255,0/255,255/255)
 
 
 
@@ -1079,16 +1080,20 @@ function plausibility_check2(args ...)
 end
 
 
-# thats the generic function for calculating time courses of a
+# this is the generic function for calculating time courses of a
 # provided population and time
 # as a single, independent population
-function timecourse(t, genotype_vector; initial_size = 1.0)
-    global current_Parameters, current_matrices
+# it also calculates in every generation what the reproductive output would be
+# if there was no editing, homing, fitness effects etc to later calculate genetic load
+function timecourse(t, genotype_vector; initial_size = 1.0, number_of_releases = 1,
+    release_genotype = [], release_size = 0 )
+    global current_Parameters, current_matrices, wildtype_matrices
 
     store_genotypes = deepcopy(genotype_vector)
     store_zygotes = BigFloat.(zeros(length(genotype_vector)))
     store_eggs = BigFloat.(zeros(length(gametes_detailed)))
     store_sperm = BigFloat.(zeros(length(gametes_detailed)))
+    store_wildtype = deepcopy(genotype_vector)
 
     Rm = current_Parameters["Rm"]
     theta = current_Parameters["theta"]
@@ -1100,23 +1105,45 @@ function timecourse(t, genotype_vector; initial_size = 1.0)
     alpha = initial_size * f / (Rm - 1.0)
 
     for i in 1:t
+        genotype_vector_wildtype = deepcopy(genotype_vector)
+
+        if (number_of_releases > 1 && i <= number_of_releases)
+            genotype_vector[return_i(release_genotype, genotypes_detailed)] += release_size
+        end
 
         genotype_vector = multiplication_optimised(current_matrices["mutation_matrix"], genotype_vector, mutation_matrix_helper)
+        genotype_vector_wildtype = multiplication_optimised(wildtype_matrices["mutation_matrix"], genotype_vector_wildtype, mutation_matrix_helper)
+
         genotype_vector = multiplication_optimised(current_matrices["homing_matrix"], genotype_vector, homing_matrix_helper)
+        genotype_vector_wildtype = multiplication_optimised(wildtype_matrices["homing_matrix"], genotype_vector_wildtype, homing_matrix_helper)
+
         genotype_vector = multiplication_optimised(current_matrices["editing_matrix"], genotype_vector, editing_matrix_helper)
+        genotype_vector_wildtype = multiplication_optimised(wildtype_matrices["editing_matrix"], genotype_vector_wildtype, editing_matrix_helper)
+
         genotype_vector = multiplication_optimised(current_matrices["recombination_matrix"], genotype_vector, recombination_matrix_helper)
+        genotype_vector_wildtype = multiplication_optimised(wildtype_matrices["recombination_matrix"], genotype_vector_wildtype, recombination_matrix_helper)
 
         sperm = multiplication_optimised(current_matrices["sperm_matrix"], genotype_vector, sperm_matrix_helper)
+        sperm_wildtype = multiplication_optimised(wildtype_matrices["sperm_matrix"], genotype_vector_wildtype, sperm_matrix_helper)
+
         total_sperm = sum(sperm)
+        total_sperm_wildtype = sum(sperm_wildtype)
+
         sperm = sperm./total_sperm
+        sperm_wildtype = sperm_wildtype./total_sperm_wildtype
 
         eggs = multiplication_optimised(current_matrices["egg_matrix"], genotype_vector, egg_matrix_helper)
+        eggs_wildtype =multiplication_optimised(wildtype_matrices["egg_matrix"], genotype_vector_wildtype, egg_matrix_helper)
+
         eggs = eggs .* f
+        eggs_wildtype = eggs_wildtype .* f
 
         store_sperm = hcat(store_sperm, sperm)
         store_eggs = hcat(store_eggs, eggs)
 
         genotype_vector = create_zygote_vector(sperm,eggs)
+        genotype_vector_wildtype = create_zygote_vector(sperm_wildtype, eggs_wildtype)
+
         store_zygotes = hcat(store_zygotes, genotype_vector)
 
         #println("RUN ", i,)
@@ -1124,13 +1151,16 @@ function timecourse(t, genotype_vector; initial_size = 1.0)
         #println(eggs)
 
         total_zygotes = sum(genotype_vector)
+        total_zygotes_wildtype = sum(genotype_vector_wildtype)
 
         genotype_vector = genotype_vector .* (theta * alpha / (alpha + total_zygotes))
+        genotype_vector_wildtype = genotype_vector_wildtype .* (theta * alpha / (alpha + total_zygotes_wildtype))
 
         genotype_vector = current_matrices["selection_matrix"] .* genotype_vector
+        genotype_vector_wildtype = wildtype_matrices["selection_matrix"] .* genotype_vector_wildtype
 
         store_genotypes = hcat(store_genotypes, genotype_vector)
-
+        store_wildtype = hcat(store_wildtype, genotype_vector_wildtype)
 
     end
 
@@ -1139,6 +1169,7 @@ function timecourse(t, genotype_vector; initial_size = 1.0)
         "zygotes" => store_zygotes,
         "eggs" => store_eggs,
         "sperm" => store_sperm,
+        "wildtype" => store_wildtype,
     )
 
     return run
@@ -1526,202 +1557,204 @@ end
 
 
 # this is the general function used for plotting run file results
-function plot_run(run::Dict; allfemales_bool = true, yle_total_bool = false,
-                    shredder_total_all_bool = false,
-                    shredder_total_male_bool = false,
-                    shredder_total_female_bool = false,
-                    Cas9_bool = false, gRNA1_bool = false,
-                    gRNA2_bool = false, shredder_bool = false,
-                    sexratio_bool = false, correlation_bool = false,
-                    y_bool = false,
-                    given_size = (700,500), given_dpi = 300)
-
-    output = plot(size = given_size, dpi = given_dpi,
-                ylims = (-0.031,1.03))
-
-    t = length(run["genotypes"][1,:])
-    AllF = zeros(t)
-    AllM = zeros(t)
-    YLE_total = zeros(t)
-    Shredder_total_all = zeros(t)
-    Shredder_total_male = zeros(t)
-    Shredder_total_female = zeros(t)
-    Cas9 = zeros(t)
-    gRNA1 = zeros(t)
-    gRNA2 = zeros(t)
-    shredder = zeros(t)
-    sexratio = zeros(t)
-    correlation = zeros(t)
-    y = zeros(t)
-
-
-    #iterating through all generations
-    for i in 1:t
-
-        current_AllF = 0
-        current_AllM = 0
-        current_YLE_total = 0
-
-        #counting the frequency of fully functional X-shredder in all individuals
-        current_Shredder_total_all = 0
-        #counting the frequency of fully functional X-shredder in males
-        current_Shredder_total_male = 0
-        #counting the frequency of fully functional X-shredder in females
-        current_Shredder_total_female = 0
-        #counting the frequency of fully functional X-shredder in
-        #a) males only and b) with same weight for homo and heterozygous
-        current_Shredder_correlation = 0
-
-        current_both_freq = 0
-        current_Cas9 = 0
-        current_gRNA1 = 0
-        current_gRNA2 = 0
-        current_shredder = 0
-
-        current_Y = 0
-
-        #iterating through all genotypes
-        for k in 1:length(run["genotypes"][:,1])
-
-            if (genotypes_detailed[k][1] in X_chromosomes)
-                current_AllF += run["genotypes"][k,i]
-            else
-                current_AllM += run["genotypes"][k,i]
-            end
-
-            if ((genotypes[k][1] == "Y2") &&
-                        (genotypes[k][3] == "A2" || genotypes[k][4] == "A2" ))
-                current_YLE_total += run["genotypes"][k,i]
-                current_both_freq += run["genotypes"][k,i]
-            elseif (genotypes[k][1] == "Y2")
-                current_YLE_total += run["genotypes"][k,i]
-            elseif (genotypes[k][1] == "Y1")
-                current_Y += run["genotypes"][k,i]
-            end
-
-            if ((genotypes_detailed[k][3] == "CD") && (genotypes_detailed[k][4] == "CD"))
-                current_Shredder_total_all += (2 * run["genotypes"][k,i])
-            elseif ((genotypes_detailed[k][3] == "CD") || (genotypes_detailed[k][4] == "CD"))
-                current_Shredder_total_all += run["genotypes"][k,i]
-            end
-
-            if ((genotypes_detailed[k][3] == "CD") && (genotypes_detailed[k][4] == "CD") && (genotypes_detailed[k][1] ∉ X_chromosomes))
-                current_Shredder_total_male += (2 * run["genotypes"][k,i])
-                current_Shredder_correlation += run["genotypes"][k,i]
-            elseif (((genotypes_detailed[k][3] == "CD") || (genotypes_detailed[k][4] == "CD")) && (genotypes_detailed[k][1] ∉ X_chromosomes))
-                current_Shredder_total_male += run["genotypes"][k,i]
-                current_Shredder_correlation += run["genotypes"][k,i]
-            end
-
-            if ((genotypes_detailed[k][3] == "CD") && (genotypes_detailed[k][4] == "CD") && (genotypes_detailed[k][1] in X_chromosomes))
-                current_Shredder_total_female += (2 * run["genotypes"][k,i])
-            elseif (((genotypes_detailed[k][3] == "CD") || (genotypes_detailed[k][4] == "CD")) && (genotypes_detailed[k][1] in X_chromosomes))
-                current_Shredder_total_female += run["genotypes"][k,i]
-            end
-
-            if (occursin("A", genotypes_detailed[k][1]))
-                current_Cas9 += run["genotypes"][k,i]
-            end
-
-            if (occursin("B", genotypes_detailed[k][1]))
-                current_gRNA1 += run["genotypes"][k,i]
-            end
-
-            if (occursin("C", genotypes_detailed[k][3]) && occursin("C", genotypes_detailed[k][4]))
-                current_shredder += (2 * run["genotypes"][k,i])
-            elseif (occursin("C", genotypes_detailed[k][3]) || occursin("C", genotypes_detailed[k][4]))
-                current_shredder += run["genotypes"][k,i]
-            end
-
-            if (occursin("D", genotypes_detailed[k][3]) && occursin("D", genotypes_detailed[k][4]))
-                current_gRNA2 += (2 * run["genotypes"][k,i])
-            elseif (occursin("D", genotypes_detailed[k][3]) || occursin("D", genotypes_detailed[k][4]))
-                current_gRNA2 += run["genotypes"][k,i]
-            end
-        end
-
-        current_both_freq = current_both_freq / current_AllM
-        current_YLE_total = current_YLE_total / current_AllM
-        current_Shredder_correlation = current_Shredder_correlation / current_AllM
-
-        AllF[i] = current_AllF
-        YLE_total[i] = current_YLE_total
-        sexratio[i] = current_AllM / (current_AllF + current_AllM)
-        Shredder_total_all[i] = (current_Shredder_total_all /
-                                        ((current_AllM * 2) + (current_AllF*2)))
-        Shredder_total_male[i] = current_Shredder_total_male / (current_AllM * 2)
-        Shredder_total_female[i] = current_Shredder_total_female / (current_AllF * 2)
-        Cas9[i] = current_Cas9 / current_AllM
-        gRNA1[i] = current_gRNA1 / current_AllM
-        shredder[i] = current_shredder / ((current_AllM * 2) + (current_AllF * 2))
-        gRNA2[i] = current_gRNA2 / ((current_AllM * 2) + (current_AllF * 2))
-
-        y[i] = current_Y / current_AllM
-
-        correlation[i] = ((current_both_freq - (current_YLE_total * current_Shredder_correlation))/
-                       sqrt(current_YLE_total*(1 - current_YLE_total)
-                       *current_Shredder_correlation*
-                       (1 -current_Shredder_correlation)))
-    end
-
-    if allfemales_bool
-        output = plot!(1:t, AllF, lw = 4, colour=:black, linestyle=:dot,
-                    label = "Total females")
-    end
-
-    if yle_total_bool
-        output = plot!(1:t, YLE_total, lw=4, colour=:blue,
-                label = "YLE")
-    end
-
-    if sexratio_bool
-        output = plot!(1:t, sexratio, lw=4, label = "Sex ratio (m/all)", color = 4)
-    end
-
-    if shredder_total_all_bool
-        output = plot!(1:t, Shredder_total_all, lw = 4, label = "X-shredder (all)",
-            colour = 3)
-    end
-
-    if shredder_total_male_bool
-        output = plot!(1:t, Shredder_total_male, lw = 4, label = "X-shredder (males)",
-            colour = 3)
-    end
-
-    if shredder_total_female_bool
-        output = plot!(1:t, Shredder_total_female, lw = 4, label = "X-shredder freq (females)")
-    end
-
-    if Cas9_bool
-        output = plot!(1:t, Cas9 , lw = 4, label = "Cas9")
-    end
-
-    if gRNA1_bool
-        output = plot!(1:t, gRNA1 , lw = 4, label = "gRNA1")
-    end
-
-    if shredder_bool
-        output = plot!(1:t, shredder , lw = 4, label = "shredder (single)")
-    end
-
-    if gRNA2_bool
-        output = plot!(1:t, gRNA2 , lw = 4, label = "gRNA2")
-    end
-
-    if correlation_bool
-        output = plot!(1:t, correlation, lw = 4, label = "Correlation",
-            colour = 2)
-
-            # println(correlation)
-    end
-
-    if y_bool
-        output = plot!(1:t, y, lw = 4, label = "wt Y freq")
-    end
-
-    return output
-
-end
+# function plot_run(run::Dict; allfemales_bool = true, yle_total_bool = false,
+#                     shredder_total_all_bool = false,
+#                     shredder_total_male_bool = false,
+#                     shredder_total_female_bool = false,
+#                     Cas9_bool = false, gRNA1_bool = false,
+#                     gRNA2_bool = false, shredder_bool = false,
+#                     sexratio_bool = false, correlation_bool = false,
+#                     y_bool = false,
+#                     given_size = (700,500), given_dpi = 300)
+#
+#
+#
+#     output = plot(size = given_size, dpi = given_dpi,
+#                 ylims = (-0.031,1.03))
+#
+#     t = length(run["genotypes"][1,:])
+#     AllF = zeros(t)
+#     AllM = zeros(t)
+#     YLE_total = zeros(t)
+#     Shredder_total_all = zeros(t)
+#     Shredder_total_male = zeros(t)
+#     Shredder_total_female = zeros(t)
+#     Cas9 = zeros(t)
+#     gRNA1 = zeros(t)
+#     gRNA2 = zeros(t)
+#     shredder = zeros(t)
+#     sexratio = zeros(t)
+#     correlation = zeros(t)
+#     y = zeros(t)
+#
+#
+#     #iterating through all generations
+#     for i in 1:t
+#
+#         current_AllF = 0
+#         current_AllM = 0
+#         current_YLE_total = 0
+#
+#         #counting the frequency of fully functional X-shredder in all individuals
+#         current_Shredder_total_all = 0
+#         #counting the frequency of fully functional X-shredder in males
+#         current_Shredder_total_male = 0
+#         #counting the frequency of fully functional X-shredder in females
+#         current_Shredder_total_female = 0
+#         #counting the frequency of fully functional X-shredder in
+#         #a) males only and b) with same weight for homo and heterozygous
+#         current_Shredder_correlation = 0
+#
+#         current_both_freq = 0
+#         current_Cas9 = 0
+#         current_gRNA1 = 0
+#         current_gRNA2 = 0
+#         current_shredder = 0
+#
+#         current_Y = 0
+#
+#         #iterating through all genotypes
+#         for k in 1:length(run["genotypes"][:,1])
+#
+#             if (genotypes_detailed[k][1] in X_chromosomes)
+#                 current_AllF += run["genotypes"][k,i]
+#             else
+#                 current_AllM += run["genotypes"][k,i]
+#             end
+#
+#             if ((genotypes[k][1] == "Y2") &&
+#                         (genotypes[k][3] == "A2" || genotypes[k][4] == "A2" ))
+#                 current_YLE_total += run["genotypes"][k,i]
+#                 current_both_freq += run["genotypes"][k,i]
+#             elseif (genotypes[k][1] == "Y2")
+#                 current_YLE_total += run["genotypes"][k,i]
+#             elseif (genotypes[k][1] == "Y1")
+#                 current_Y += run["genotypes"][k,i]
+#             end
+#
+#             if ((genotypes_detailed[k][3] == "CD") && (genotypes_detailed[k][4] == "CD"))
+#                 current_Shredder_total_all += (2 * run["genotypes"][k,i])
+#             elseif ((genotypes_detailed[k][3] == "CD") || (genotypes_detailed[k][4] == "CD"))
+#                 current_Shredder_total_all += run["genotypes"][k,i]
+#             end
+#
+#             if ((genotypes_detailed[k][3] == "CD") && (genotypes_detailed[k][4] == "CD") && (genotypes_detailed[k][1] ∉ X_chromosomes))
+#                 current_Shredder_total_male += (2 * run["genotypes"][k,i])
+#                 current_Shredder_correlation += run["genotypes"][k,i]
+#             elseif (((genotypes_detailed[k][3] == "CD") || (genotypes_detailed[k][4] == "CD")) && (genotypes_detailed[k][1] ∉ X_chromosomes))
+#                 current_Shredder_total_male += run["genotypes"][k,i]
+#                 current_Shredder_correlation += run["genotypes"][k,i]
+#             end
+#
+#             if ((genotypes_detailed[k][3] == "CD") && (genotypes_detailed[k][4] == "CD") && (genotypes_detailed[k][1] in X_chromosomes))
+#                 current_Shredder_total_female += (2 * run["genotypes"][k,i])
+#             elseif (((genotypes_detailed[k][3] == "CD") || (genotypes_detailed[k][4] == "CD")) && (genotypes_detailed[k][1] in X_chromosomes))
+#                 current_Shredder_total_female += run["genotypes"][k,i]
+#             end
+#
+#             if (occursin("A", genotypes_detailed[k][1]))
+#                 current_Cas9 += run["genotypes"][k,i]
+#             end
+#
+#             if (occursin("B", genotypes_detailed[k][1]))
+#                 current_gRNA1 += run["genotypes"][k,i]
+#             end
+#
+#             if (occursin("C", genotypes_detailed[k][3]) && occursin("C", genotypes_detailed[k][4]))
+#                 current_shredder += (2 * run["genotypes"][k,i])
+#             elseif (occursin("C", genotypes_detailed[k][3]) || occursin("C", genotypes_detailed[k][4]))
+#                 current_shredder += run["genotypes"][k,i]
+#             end
+#
+#             if (occursin("D", genotypes_detailed[k][3]) && occursin("D", genotypes_detailed[k][4]))
+#                 current_gRNA2 += (2 * run["genotypes"][k,i])
+#             elseif (occursin("D", genotypes_detailed[k][3]) || occursin("D", genotypes_detailed[k][4]))
+#                 current_gRNA2 += run["genotypes"][k,i]
+#             end
+#         end
+#
+#         current_both_freq = current_both_freq / current_AllM
+#         current_YLE_total = current_YLE_total / current_AllM
+#         current_Shredder_correlation = current_Shredder_correlation / current_AllM
+#
+#         AllF[i] = current_AllF
+#         YLE_total[i] = current_YLE_total
+#         sexratio[i] = current_AllM / (current_AllF + current_AllM)
+#         Shredder_total_all[i] = (current_Shredder_total_all /
+#                                         ((current_AllM * 2) + (current_AllF*2)))
+#         Shredder_total_male[i] = current_Shredder_total_male / (current_AllM * 2)
+#         Shredder_total_female[i] = current_Shredder_total_female / (current_AllF * 2)
+#         Cas9[i] = current_Cas9 / current_AllM
+#         gRNA1[i] = current_gRNA1 / current_AllM
+#         shredder[i] = current_shredder / ((current_AllM * 2) + (current_AllF * 2))
+#         gRNA2[i] = current_gRNA2 / ((current_AllM * 2) + (current_AllF * 2))
+#
+#         y[i] = current_Y / current_AllM
+#
+#         correlation[i] = ((current_both_freq - (current_YLE_total * current_Shredder_correlation))/
+#                        sqrt(current_YLE_total*(1 - current_YLE_total)
+#                        *current_Shredder_correlation*
+#                        (1 -current_Shredder_correlation)))
+#     end
+#
+#     if allfemales_bool
+#         output = plot!(1:t, AllF, lw = 4, colour=:black, linestyle=:dot,
+#                     label = "Total females")
+#     end
+#
+#     if yle_total_bool
+#         output = plot!(1:t, YLE_total, lw=4, colour=:blue,
+#                 label = "YLE")
+#     end
+#
+#     if sexratio_bool
+#         output = plot!(1:t, sexratio, lw=4, label = "Sex ratio (m/all)", color = 4)
+#     end
+#
+#     if shredder_total_all_bool
+#         output = plot!(1:t, Shredder_total_all, lw = 4, label = "X-shredder (all)",
+#             colour = 3)
+#     end
+#
+#     if shredder_total_male_bool
+#         output = plot!(1:t, Shredder_total_male, lw = 4, label = "X-shredder (males)",
+#             colour = 3)
+#     end
+#
+#     if shredder_total_female_bool
+#         output = plot!(1:t, Shredder_total_female, lw = 4, label = "X-shredder freq (females)")
+#     end
+#
+#     if Cas9_bool
+#         output = plot!(1:t, Cas9 , lw = 4, label = "Cas9")
+#     end
+#
+#     if gRNA1_bool
+#         output = plot!(1:t, gRNA1 , lw = 4, label = "gRNA1")
+#     end
+#
+#     if shredder_bool
+#         output = plot!(1:t, shredder , lw = 4, label = "shredder (single)")
+#     end
+#
+#     if gRNA2_bool
+#         output = plot!(1:t, gRNA2 , lw = 4, label = "gRNA2")
+#     end
+#
+#     if correlation_bool
+#         output = plot!(1:t, correlation, lw = 4, label = "Correlation",
+#             colour = 2)
+#
+#             # println(correlation)
+#     end
+#
+#     if y_bool
+#         output = plot!(1:t, y, lw = 4, label = "wt Y freq")
+#     end
+#
+#     return output
+#
+# end
 
 
 function plot_run_dys(run::Dict; allfemales_bool = true,
@@ -2030,6 +2063,9 @@ function plot_run_comprehensive(run::Dict; allfemales_bool = true, yle_total_boo
                     res3_bool = false,
                     sexratio_bool = false, correlation_bool = false,
                     y_bool = false,
+                    load_easy_bool = false,
+                    load_demanding_bool = false,
+                    inverse_load_bool = false,
                     given_size = (700,500), given_dpi = 300,
                     log_safe = false,
                     allfemales_log = false,
@@ -2038,7 +2074,15 @@ function plot_run_comprehensive(run::Dict; allfemales_bool = true, yle_total_boo
                     dCas9_colour = colour_dCas9,
                     dgRNA1_colour = colour_dgRNA1 ,
                     dshredder_colour =  colour_dShredder,
-                    dgRNA2_colour = colour_dgRNA2)
+                    dgRNA2_colour = colour_dgRNA2,
+                    load_colour = colour_load,
+                    initial_size = 1.0,
+                    print_load = false,
+                    compare_load_calcuations = false,
+                    load_zygotes_bool = false,
+                    load_zygotes_bool2 = false)
+
+    global current_Parameters, current_matrices
 
     output = plot(size = given_size, dpi = given_dpi,
                 ylims = (-0.031,1.03))
@@ -2064,6 +2108,21 @@ function plot_run_comprehensive(run::Dict; allfemales_bool = true, yle_total_boo
     Res2 = zeros(t)
     Res3 = zeros(t)
     y = zeros(t)
+    load_easy = ones(t)
+    load_demanding = ones(t)
+
+
+    Rm = current_Parameters["Rm"]
+    theta = current_Parameters["theta"]
+
+    #number of eggs ("f")
+    f = (Rm * 2.0) / theta
+
+    load_zygotes = zeros(t)
+    load_zygotes2 = zeros(t)
+
+    #alpha is a constant determining the density dependent mortality (half maximal)
+    alpha = initial_size * f / (Rm - 1.0)
 
 
     #iterating through all generations
@@ -2072,6 +2131,9 @@ function plot_run_comprehensive(run::Dict; allfemales_bool = true, yle_total_boo
         current_AllF = 0
         current_AllM = 0
         current_YLE_total = 0
+
+        current_AllF_zygotes = 0
+        current_AllF_x_selection_zygotes = 0
 
         #counting the frequency of fully functional X-shredder in all individuals
         current_Shredder_total_all = 0
@@ -2100,14 +2162,22 @@ function plot_run_comprehensive(run::Dict; allfemales_bool = true, yle_total_boo
 
         current_Y = 0
 
+        #counting the number of females in alternative scenario without
+        #editing, homing etc
+        wildtype_AllF = 0
+
         #iterating through all genotypes
         for k in 1:length(run["genotypes"][:,1])
 
             if (genotypes_detailed[k][1] in X_chromosomes)
                 current_AllF += run["genotypes"][k,i]
+                wildtype_AllF += run["wildtype"][k,i]
+                current_AllF_zygotes += run["zygotes"][k,i]
+                current_AllF_x_selection_zygotes += run["zygotes"][k,i] * current_matrices["selection_matrix"][k]
             else
                 current_AllM += run["genotypes"][k,i]
             end
+
 
             if ((genotypes[k][1] == "Y2") &&
                         (genotypes[k][3] == "A2" || genotypes[k][4] == "A2" ))
@@ -2207,7 +2277,7 @@ function plot_run_comprehensive(run::Dict; allfemales_bool = true, yle_total_boo
 
         AllF[i] = current_AllF
         YLE_total[i] = current_YLE_total
-        sexratio[i] = current_AllM / (current_AllF + current_AllM)
+        sexratio[i] = current_AllF / (current_AllF + current_AllM)
         Shredder_total_all[i] = (current_Shredder_total_all /
                                         ((current_AllM * 2) + (current_AllF*2)))
         Shredder_total_male[i] = current_Shredder_total_male / (current_AllM * 2)
@@ -2222,6 +2292,69 @@ function plot_run_comprehensive(run::Dict; allfemales_bool = true, yle_total_boo
         gRNA1_dys[i] = current_gRNA1_dys / current_AllM
         shredder_dys[i] = current_shredder_dys / ((current_AllM * 2) + (current_AllF * 2))
         gRNA2_dys[i] = current_gRNA2_dys / ((current_AllM * 2) + (current_AllF * 2))
+
+        if (load_easy_bool && i<t)
+            load_easy[i+1] = 0.5 * current_AllF * f * theta * alpha / (alpha + (current_AllF * f))
+
+            load_easy[i] = (current_AllF) / load_easy[i]
+            println("Easy load at ", i, " is ", 1 - load_easy[i])
+
+            if (print_load)
+                println(load_easy[i])
+            end
+
+        else
+            load_easy[i] = NaN
+        end
+
+
+
+
+        load_demanding[i] = current_AllF / wildtype_AllF
+
+        if (print_load)
+            println(1 - load_demanding[i])
+        end
+
+        if (compare_load_calcuations)
+            if (load_demanding[i] != load_easy[i])
+                println("Warning: load calculation methods differ for")
+                println(i)
+                println(load_easy[i])
+                println(load_demanding[i])
+            end
+        end
+
+
+        if (load_zygotes_bool  && i<t)
+            #println(i)
+            #load_zygotes[i+1] = 0.5 * current_AllF * f * theta * alpha / (alpha + (current_AllF * f))
+            #load_zygotes[i + 1] = 0.5 * current_AllF * f
+            load_zygotes[i + 1] = (current_AllF_zygotes * theta * alpha / (alpha + (sum(
+                        run["zygotes"][:,i])))) *
+                                        f * 0.5
+
+
+            #println("has allF_zygotes:", current_AllF_zygotes)
+            #println("has current_AllF_x_selection_zygotes:", current_AllF_x_selection_zygotes)
+
+            #println("Next generation has", load_zygotes[i+1], "zygotes")
+            load_zygotes[i] = 1 - ((current_AllF_x_selection_zygotes) / load_zygotes[i])
+            #println("Zygotes load 1 at ", i, " is ", load_zygotes[i])
+            #println("This generation has load of", load_zygotes[i])
+        elseif (load_zygotes_bool)
+            load_zygotes[i] = 1 - ((current_AllF_x_selection_zygotes) / load_zygotes[i])
+        end
+
+        if (load_zygotes_bool2)
+
+            load_zygotes2[i] = 1 - 2 * (current_AllF_zygotes/sum(
+                        run["zygotes"][:,i])) * ((current_AllF_x_selection_zygotes) / current_AllF_zygotes)
+
+            #println("Zygotes load2 at ", i, " is ", load_zygotes2[i])
+
+        end
+
 
         if log_safe
             if Cas9_dys[i] == 0
@@ -2255,7 +2388,7 @@ function plot_run_comprehensive(run::Dict; allfemales_bool = true, yle_total_boo
 
 
     if sexratio_bool
-        output = plot!(1:t, sexratio, lw=4, label = "Sex ratio (m/all)", color = 4)
+        output = plot!(1:t, sexratio, lw=4, label = "Sex ratio (m/all)", color = colour_sexratio)
     end
 
     if shredder_total_female_bool
@@ -2321,6 +2454,31 @@ function plot_run_comprehensive(run::Dict; allfemales_bool = true, yle_total_boo
         output = plot!(1:t, correlation, lw = 4, label = "Correlation",
             colour = colour_correlation)
             # println(correlation)
+    end
+
+    if load_easy_bool
+        output = plot!(1:t, 1 .- load_easy, lw = 4, label = "load_easy", colour = load_colour,
+        linestyle =:solid)
+    end
+
+    if load_demanding_bool
+        output = plot!(1:t, load_demanding, lw = 4, label = "load_demanding", colour = load_colour,
+        linestyle =:solid)
+    end
+
+    if inverse_load_bool
+        output = plot!(1:t, 1 .- load_demanding, lw = 4, label = "inverse load", colour = load_colour,
+        linestyle =:solid)
+    end
+
+    if load_zygotes_bool
+        output = plot!(1:t, load_zygotes, lw = 4, label = "load zygotes", colour = load_colour,
+        linestyle =:solid)
+    end
+
+    if load_zygotes_bool2
+        output = plot!(1:t, load_zygotes2, lw = 4, label = "load zygotes2", colour = load_colour,
+        linestyle =:solid)
     end
 
     if dCas9_bool
@@ -4180,11 +4338,29 @@ function sensitivity_plot2(scan1, scan2; given_size = (325,200), ymin = 1e-10, k
 
 
     plot(scan1[2:end,1], (scan1[2:end,2]), lw = 4, label = "min pop size", colour=:black,
-        #linestyle=:dot,
+        linestyle=:dot,
         dpi = 300, size = given_size, legend = false, ylims = (ymin, 5), yaxis =:log)
     plot!(ytickfontsize = 10, xtickfontsize = 10, grid = false)
-    plot!(scan1[2:end,1], (scan2[2:end,2]), lw = 4, colour=:black, dpi = 300, legend = false, ylims = (ymin, 5), yaxis =:log)
+    plot!(scan1[2:end,1], (scan2[2:end,2]), lw = 4, colour=:black, dpi = 300, legend = false, ylims = (ymin, 5), yaxis =:log, linestyle=:dash)
     #plot!(scan1[2:end,1], (scan3[2:end,2]), lw = 4,  colour=:blue, dpi = 300, size = (325,150), legend = false, ylims = (ymin, 5), yaxis =:log)
+
+end
+
+
+function sensitivity_plot3(scan1, scan2, scan3, scan4, scan5, scan6;
+            given_size = (300,180), ymin = 1e-10, kwargs...)
+
+
+    plot(scan1[2:end,1], (scan1[2:end,2]), lw = 4, label = "min pop size", colour= colorant"#000000",
+        linestyle=:dot,
+        dpi = 300, size = given_size, legend = false, ylims = (ymin, 5), yaxis =:log)
+    plot!(ytickfontsize = 10, xtickfontsize = 10, grid = false)
+    plot!(scan1[2:end,1], (scan2[2:end,2]), lw = 4, colour= colorant"#000000", dpi = 300, legend = false, ylims = (ymin, 5), yaxis =:log, linestyle=:dash)
+    plot!(scan1[2:end,1], (scan3[2:end,2]), lw = 4, colour= colorant"#F0DC00", dpi = 300, legend = false, ylims = (ymin, 5), yaxis =:log, linestyle=:dot)
+    plot!(scan1[2:end,1], (scan4[2:end,2]), lw = 4, colour= colorant"#F0DC00", dpi = 300, legend = false, ylims = (ymin, 5), yaxis =:log, linestyle=:dash)
+    plot!(scan1[2:end,1], (scan5[2:end,2]), lw = 4, colour= colorant"#FF7200", dpi = 300, legend = false, ylims = (ymin, 5), yaxis =:log, linestyle=:dot)
+    plot!(scan1[2:end,1], (scan6[2:end,2]), lw = 4, colour= colorant"#FF7200", dpi = 300, legend = false, ylims = (ymin, 5), yaxis =:log, linestyle=:dash)
+    plot!(ytickfontsize = 12, xtickfontsize = 12, dpi = 300, size = given_size)
 
 end
 
@@ -4224,9 +4400,12 @@ end
 
 
 function return_min_population_size_and_max_transgenic_freq(input)
+    global current_matrices
     output_min_population_size = BigFloat("1")
     output_max_transgenic_Y = BigFloat("0")
     output_max_transgenic_S = BigFloat("0")
+    output_min_female_proportion = BigFloat("0.5")
+    output_max_load = BigFloat("0")
 
     for t in 1:length(input["genotypes"][1,:])
 
@@ -4234,6 +4413,10 @@ function return_min_population_size_and_max_transgenic_freq(input)
         allmales = BigFloat("0")
         cur_transgenic_Y = BigFloat("0")
         cur_transgenic_S = BigFloat("0")
+        cur_female_proportion = BigFloat("0.5")
+        cur_load = BigFloat("0")
+        current_AllF_zygotes = BigFloat("0")
+        current_AllF_x_selection_zygotes = BigFloat("0")
 
         genotype_vector = input["genotypes"][:,t]
 
@@ -4241,6 +4424,8 @@ function return_min_population_size_and_max_transgenic_freq(input)
 
             if genotypes_detailed[k][1] in X_chromosomes
                 allfemales += genotype_vector[k]
+                current_AllF_zygotes += input["zygotes"][k,t]
+                current_AllF_x_selection_zygotes += input["zygotes"][k,t] * current_matrices["selection_matrix"][k]
             else
                 allmales += genotype_vector[k]
             end
@@ -4267,7 +4452,10 @@ function return_min_population_size_and_max_transgenic_freq(input)
 
         cur_transgenic_Y = cur_transgenic_Y / allmales
         cur_transgenic_S = cur_transgenic_S / (allmales * 2 + allfemales * 2)
+        cur_female_proportion = allfemales/(allmales + allfemales)
 
+        cur_load = 1 - 2 * (current_AllF_zygotes/sum(
+                    input["zygotes"][:,t])) * ((current_AllF_x_selection_zygotes) / current_AllF_zygotes)
 
         if allfemales < output_min_population_size
             output_min_population_size = allfemales
@@ -4281,13 +4469,23 @@ function return_min_population_size_and_max_transgenic_freq(input)
             output_max_transgenic_S = cur_transgenic_S
         end
 
+        if cur_female_proportion < output_min_female_proportion
+            output_min_female_proportion = cur_female_proportion
+        end
+
+        if cur_load > output_max_load
+            output_max_load = cur_load
+        end
+
     end
 
 
 
     println("Minimum population size is ", output_min_population_size)
-    println("Minimum population size is ", output_max_transgenic_Y)
-    println("Minimum population size is ", output_max_transgenic_S)
+    println("Max transgenic Y is ", output_max_transgenic_Y)
+    println("Max transgenic Autosome is ", output_max_transgenic_S)
+    println("Min female proportion is ", output_min_female_proportion)
+    println("Max genetic load is ", output_max_load)
 
 end
 
@@ -4829,6 +5027,312 @@ Parameters_set_sensitivity3 = Dict(
     "r" => BigFloat("0.5"),
 )
 
+
+#another parameter set
+Parameters_set_sensitivity4_lowRM = Dict(
+
+    #conditionality factor, describing whether X-shredding only happens in presence
+    #of YLE (=0) or in presence of all Y chromosomes (=1)
+    "c" => BigFloat("1"),
+
+    # selection against carrying edited X gene (homozygous, females)
+    "s_f" => BigFloat("1"),
+
+    # dominance coefficient for carrying edited X gene (heterozygous, females)
+    "h_f" => BigFloat("1"),
+
+    # selection against carrying edited X gene (males)
+    "s_m" => BigFloat("0"),
+
+    "s_a" => BigFloat("0"),
+    "s_b" => BigFloat("0"),
+    "s_c" => BigFloat("0"),
+    "s_d" => BigFloat("0.01"),
+    "s_e" => BigFloat("0.01"),
+    "h_e" => BigFloat("1"),
+
+    #efficiency of editing (e_e)
+    "e_e" => BigFloat("0.95"),
+
+    #efficiency of homing (e_c)
+    "e_h" => BigFloat("0.95"),
+
+    #mutation rate during homing (m)
+    "m_1" => BigFloat("1e-3"),
+
+    #background mutation rate of all components
+    "m_2" => BigFloat("1e-6"),
+
+    #efficiency of X-shredding
+    "e_s" => BigFloat("0.90"),
+
+    #dominance coefficient of X-shredding activity
+    "h_e2" => BigFloat("1.0"),
+
+    #intrinsic rate of population increase
+    "Rm" => BigFloat("4"),
+
+    #density independent survival rate
+    "theta" => BigFloat("0.1"),
+
+    #rate with which editing resistance occurs during editing process
+    "er_1" => BigFloat("0"),
+
+    #rate with which shredding resistance occurs during shredding process
+    "er_2" => BigFloat("0"),
+
+    #rate with which homing resistance occurs during the homing process
+    "er_3" => BigFloat("0.05"),
+
+    #recombination rate (X-linked loci;Editing gene and shredding target site)
+    "r" => BigFloat("0.5"),
+)
+
+#another parameter set
+Parameters_set_sensitivity5_lowRM = Dict(
+
+    #conditionality factor, describing whether X-shredding only happens in presence
+    #of YLE (=0) or in presence of all Y chromosomes (=1)
+    "c" => BigFloat("1"),
+
+    # selection against carrying edited X gene (homozygous, females)
+    "s_f" => BigFloat("1"),
+
+    # dominance coefficient for carrying edited X gene (heterozygous, females)
+    "h_f" => BigFloat("1"),
+
+    # selection against carrying edited X gene (males)
+    "s_m" => BigFloat("0"),
+
+    "s_a" => BigFloat("0"),
+    "s_b" => BigFloat("0"),
+    "s_c" => BigFloat("0"),
+    "s_d" => BigFloat("0.01"),
+    "s_e" => BigFloat("0.01"),
+    "h_e" => BigFloat("1"),
+
+    #efficiency of editing (e_e)
+    "e_e" => BigFloat("0.95"),
+
+    #efficiency of homing (e_c)
+    "e_h" => BigFloat("0.95"),
+
+    #mutation rate during homing (m)
+    "m_1" => BigFloat("1e-3"),
+
+    #background mutation rate of all components
+    "m_2" => BigFloat("1e-6"),
+
+    #efficiency of X-shredding
+    "e_s" => BigFloat("0.90"),
+
+    #dominance coefficient of X-shredding activity
+    "h_e2" => BigFloat("1.0"),
+
+    #intrinsic rate of population increase
+    "Rm" => BigFloat("4"),
+
+    #density independent survival rate
+    "theta" => BigFloat("0.1"),
+
+    #rate with which editing resistance occurs during editing process
+    "er_1" => BigFloat("0"),
+
+    #rate with which shredding resistance occurs during shredding process
+    "er_2" => BigFloat("0"),
+
+    #rate with which homing resistance occurs during the homing process
+    "er_3" => BigFloat("0.6"),
+
+    #recombination rate (X-linked loci;Editing gene and shredding target site)
+    "r" => BigFloat("0.5"),
+)
+
+
+#another parameter set
+Parameters_set_sensitivity6_highRM = Dict(
+
+    #conditionality factor, describing whether X-shredding only happens in presence
+    #of YLE (=0) or in presence of all Y chromosomes (=1)
+    "c" => BigFloat("1"),
+
+    # selection against carrying edited X gene (homozygous, females)
+    "s_f" => BigFloat("1"),
+
+    # dominance coefficient for carrying edited X gene (heterozygous, females)
+    "h_f" => BigFloat("1"),
+
+    # selection against carrying edited X gene (males)
+    "s_m" => BigFloat("0"),
+
+    "s_a" => BigFloat("0"),
+    "s_b" => BigFloat("0"),
+    "s_c" => BigFloat("0"),
+    "s_d" => BigFloat("0.01"),
+    "s_e" => BigFloat("0.01"),
+    "h_e" => BigFloat("1"),
+
+    #efficiency of editing (e_e)
+    "e_e" => BigFloat("0.95"),
+
+    #efficiency of homing (e_c)
+    "e_h" => BigFloat("0.95"),
+
+    #mutation rate during homing (m)
+    "m_1" => BigFloat("1e-3"),
+
+    #background mutation rate of all components
+    "m_2" => BigFloat("1e-6"),
+
+    #efficiency of X-shredding
+    "e_s" => BigFloat("0.90"),
+
+    #dominance coefficient of X-shredding activity
+    "h_e2" => BigFloat("1.0"),
+
+    #intrinsic rate of population increase
+    "Rm" => BigFloat("8"),
+
+    #density independent survival rate
+    "theta" => BigFloat("0.1"),
+
+    #rate with which editing resistance occurs during editing process
+    "er_1" => BigFloat("0"),
+
+    #rate with which shredding resistance occurs during shredding process
+    "er_2" => BigFloat("0"),
+
+    #rate with which homing resistance occurs during the homing process
+    "er_3" => BigFloat("0.05"),
+
+    #recombination rate (X-linked loci;Editing gene and shredding target site)
+    "r" => BigFloat("0.5"),
+)
+
+#another parameter set
+Parameters_set_sensitivity7_highRM = Dict(
+
+    #conditionality factor, describing whether X-shredding only happens in presence
+    #of YLE (=0) or in presence of all Y chromosomes (=1)
+    "c" => BigFloat("1"),
+
+    # selection against carrying edited X gene (homozygous, females)
+    "s_f" => BigFloat("1"),
+
+    # dominance coefficient for carrying edited X gene (heterozygous, females)
+    "h_f" => BigFloat("1"),
+
+    # selection against carrying edited X gene (males)
+    "s_m" => BigFloat("0"),
+
+    "s_a" => BigFloat("0"),
+    "s_b" => BigFloat("0"),
+    "s_c" => BigFloat("0"),
+    "s_d" => BigFloat("0.01"),
+    "s_e" => BigFloat("0.01"),
+    "h_e" => BigFloat("1"),
+
+    #efficiency of editing (e_e)
+    "e_e" => BigFloat("0.95"),
+
+    #efficiency of homing (e_c)
+    "e_h" => BigFloat("0.95"),
+
+    #mutation rate during homing (m)
+    "m_1" => BigFloat("1e-3"),
+
+    #background mutation rate of all components
+    "m_2" => BigFloat("1e-6"),
+
+    #efficiency of X-shredding
+    "e_s" => BigFloat("0.90"),
+
+    #dominance coefficient of X-shredding activity
+    "h_e2" => BigFloat("1.0"),
+
+    #intrinsic rate of population increase
+    "Rm" => BigFloat("8"),
+
+    #density independent survival rate
+    "theta" => BigFloat("0.1"),
+
+    #rate with which editing resistance occurs during editing process
+    "er_1" => BigFloat("0"),
+
+    #rate with which shredding resistance occurs during shredding process
+    "er_2" => BigFloat("0"),
+
+    #rate with which homing resistance occurs during the homing process
+    "er_3" => BigFloat("0.6"),
+
+    #recombination rate (X-linked loci;Editing gene and shredding target site)
+    "r" => BigFloat("0.5"),
+)
+
+
+#wildtye parameters to calculate genetic load
+Parameters_set_wildtype = Dict(
+
+    #conditionality factor, describing whether X-shredding only happens in presence
+    #of YLE (=0) or in presence of all Y chromosomes (=1)
+    "c" => BigFloat("1"),
+
+    # selection against carrying edited X gene (homozygous, females)
+    "s_f" => BigFloat("0"),
+
+    # dominance coefficient for carrying edited X gene (heterozygous, females)
+    "h_f" => BigFloat("1"),
+
+    # selection against carrying edited X gene (males)
+    "s_m" => BigFloat("0"),
+
+    "s_a" => BigFloat("0"),
+    "s_b" => BigFloat("0"),
+    "s_c" => BigFloat("0"),
+    "s_d" => BigFloat("0"),
+    "s_e" => BigFloat("0"),
+    "h_e" => BigFloat("1"),
+
+    #efficiency of editing (e_e)
+    "e_e" => BigFloat("0"),
+
+    #efficiency of homing (e_c)
+    "e_h" => BigFloat("0"),
+
+    #mutation rate during homing (m)
+    "m_1" => BigFloat("0"),
+
+    #background mutation rate of all components
+    "m_2" => BigFloat("0"),
+
+    #efficiency of X-shredding
+    "e_s" => BigFloat("0"),
+
+    #dominance coefficient of X-shredding activity
+    "h_e2" => BigFloat("1.0"),
+
+    #intrinsic rate of population increase
+    "Rm" => BigFloat("6"),
+
+    #density independent survival rate
+    "theta" => BigFloat("0.1"),
+
+    #rate with which editing resistance occurs during editing process
+    "er_1" => BigFloat("0"),
+
+    #rate with which shredding resistance occurs during shredding process
+    "er_2" => BigFloat("0"),
+
+    #rate with which homing resistance occurs during the homing process
+    "er_3" => BigFloat("0"),
+
+    #recombination rate (X-linked loci;Editing gene and shredding target site)
+    "r" => BigFloat("0.5"),
+)
+
+#we calculate tables for wild-type conditions (no editing, no homing, no fitness effects...)
+apply_parameters_set(Parameters_set_wildtype)
+wildtype_matrices = deepcopy(current_matrices)
 
 #we apply the baseline parameter values to our tables
 #so that we can run timecourses
