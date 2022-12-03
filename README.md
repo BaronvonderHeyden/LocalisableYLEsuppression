@@ -33,7 +33,7 @@ To run the model, you need to at least install Julia and all package dependencie
 
 To learn more about the installation of Julia go to their [webpage](https://julialang.org/downloads/).
 
-The Julia package dependencies required for the model can be install by executing the file XXX
+The Julia package dependencies required for the model can be install by executing the file `setup.jl` (folder `code`).
 
 Further, it is highly recommened to look at the Jupyter notebooks provided in the folder `Jupyter notebooks`. Because these show with examples of code + output how to use the model.
 To install Jupyter notebook, to see how to install Jupyter go [here](https://jupyter.org/install).
@@ -50,7 +50,7 @@ If you then want to have an even deeper understanding go to `Jupyter notebooks`>
 
 ## Reproducing results on your local machine
 
-XXX
+After installing Julia and the Jupyter Notebook you can reproduce all results on your local machine by re-running the `Publication figures + code` notebook(folder `Jupyter notebooks`).
 
 
 ## License
