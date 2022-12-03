@@ -31,11 +31,12 @@ or [download a zip archive](https://github.com/ReneGeci/LocalisableYLEsuppressio
 ## Dependencies
 To run the model, you need to at least install Julia and all package dependencies required to run the model.
 
-To learn more about the installation of Julia [go here](https://julialang.org/downloads/)
+To learn more about the installation of Julia go to their [webpage](https://julialang.org/downloads/).
 
+The Julia package dependencies required for the model can be install by executing the file XXX
 
-Jupyter notebook...
-XXX
+Further, it is highly recommened to look at the Jupyter notebooks provided in the folder `Jupyter notebooks`. Because these show with examples of code + output how to use the model.
+To install Jupyter notebook, to see how to install Jupyter go [here](https://jupyter.org/install).
 
 
 ## Starting point
