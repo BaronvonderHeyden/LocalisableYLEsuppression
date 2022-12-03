@@ -47,7 +47,7 @@ for i in 1:-0.01:0
 
 end
 
-writedlm("sf_scan72",  sf, ',')
+writedlm("Simulation results\\sf_scan72",  sf, ',')
 
 current_matrices = deepcopy(save_current_matrices)
 current_Parameters = deepcopy(save_current_Parameters)
@@ -62,7 +62,7 @@ for i in 1:-0.01:0
     hf = vcat(hf, add)
 
 end
-writedlm("hf_scan72",  hf, ',')
+writedlm("Simulation results\\hf_scan72",  hf, ',')
 
 
 current_matrices = copy(save_current_matrices)
@@ -78,7 +78,7 @@ for i in 0:0.005:1
     sa = vcat(sa, add)
 
 end
-writedlm("sa_scan72",  sa, ',')
+writedlm("Simulation results\\sa_scan72",  sa, ',')
 
 
 current_matrices = copy(save_current_matrices)
@@ -94,7 +94,7 @@ for i in 0:0.005:1
     sb = vcat(sb, add)
 
 end
-writedlm("sb_scan72",  sb, ',')
+writedlm("Simulation results\\sb_scan72",  sb, ',')
 
 
 current_matrices = copy(save_current_matrices)
@@ -111,7 +111,7 @@ for i in 0:0.005:1
     sc = vcat(sc, add)
 
 end
-writedlm("sc_scan72",  sc, ',')
+writedlm("Simulation results\\sc_scan72",  sc, ',')
 
 
 
@@ -128,7 +128,7 @@ for i in 0:0.005:1
     sd = vcat(sd, add)
 
 end
-writedlm("sd_scan72",  sd, ',')
+writedlm("Simulation results\\sd_scan72",  sd, ',')
 
 
 
@@ -146,7 +146,7 @@ for i in 0:0.005:1
 
 
 end
-writedlm("se_scan72",  se, ',')
+writedlm("Simulation results\\se_scan72",  se, ',')
 
 
 
@@ -163,7 +163,7 @@ for i in 0:0.005:1
     he = vcat(he, add)
 
 end
-writedlm("he_scan72",  he, ',')
+writedlm("Simulation results\\he_scan72",  he, ',')
 
 
 current_matrices = copy(save_current_matrices)
@@ -181,7 +181,7 @@ for i in 0:0.005:1
     prot_expression_cost = vcat(prot_expression_cost, add)
 
 end
-writedlm("prot_expression_cost_scan72",  prot_expression_cost, ',')
+writedlm("Simulation results\\prot_expression_cost_scan72",  prot_expression_cost, ',')
 
 
 
@@ -199,7 +199,7 @@ for i in 0:0.02:1
 
 
 end
-writedlm("sm_scan72",  sm, ',')
+writedlm("Simulation results\\sm_scan72",  sm, ',')
 
 
 current_matrices = copy(save_current_matrices)
@@ -224,7 +224,7 @@ for i in 1:-0.01:0
     ee = vcat(ee, add)
 
 end
-writedlm("ee_scan72",  ee, ',')
+writedlm("Simulation results\\ee_scan72",  ee, ',')
 
 
 
@@ -249,7 +249,7 @@ for i in 1:-0.01:0
     add = [i sup dur Y S]
     eh = vcat(eh, add)
 end
-writedlm("eh_scan72",  eh, ',')
+writedlm("Simulation results\\eh_scan72",  eh, ',')
 
 
 
@@ -275,7 +275,7 @@ for i in 1:-0.01:0
     es = vcat(es, add)
 
 end
-writedlm("es_scan72",  es, ',')
+writedlm("Simulation results\\es_scan72",  es, ',')
 
 
 current_matrices = copy(save_current_matrices)
@@ -300,7 +300,7 @@ for i in 1:-0.01:0
     he2 = vcat(he2, add)
 end
 
-writedlm("he2_scan72",  he2, ',')
+writedlm("Simulation results\\he2_scan72",  he2, ',')
 
 current_matrices = copy(save_current_matrices)
 current_Parameters = deepcopy(save_current_Parameters)
@@ -327,7 +327,7 @@ for i in 1:-0.01:0
     shredding_activity_cost = vcat(shredding_activity_cost, add)
 end
 
-writedlm("shredding_activity_cost_scan72",  shredding_activity_cost, ',')
+writedlm("Simulation results\\shredding_activity_cost_scan72",  shredding_activity_cost, ',')
 
 
 current_matrices = deepcopy(save_current_matrices)
@@ -352,7 +352,7 @@ for i in -3:0.05:0
 
 end
 
-writedlm("m1_scan72",  m1, ',')
+writedlm("Simulation results\\m1_scan72",  m1, ',')
 
 current_matrices = copy(save_current_matrices)
 current_Parameters = deepcopy(save_current_Parameters)
@@ -375,7 +375,7 @@ for i in -3:0.05:0
 
 end
 
-writedlm("m2_scan72",  m2, ',')
+writedlm("Simulation results\\m2_scan72",  m2, ',')
 
 current_matrices = copy(save_current_matrices)
 current_Parameters = deepcopy(save_current_Parameters)
@@ -400,7 +400,7 @@ for i in -6:0.05:0
 
 end
 
-writedlm("er1_scan72",  er1, ',')
+writedlm("Simulation results\\er1_scan72",  er1, ',')
 
 
 
@@ -423,7 +423,7 @@ for i in 0:0.01:1
     add = [i sup dur Y S]
     er2 = vcat(er2, add)
 end
-writedlm("er2_scan72",  er2, ',')
+writedlm("Simulation results\\er2_scan72",  er2, ',')
 
 
 current_matrices = copy(save_current_matrices)
@@ -446,7 +446,7 @@ for i in 0:0.01:1
     add = [i sup dur Y S]
     er3 = vcat(er3, add)
 end
-writedlm("er3_scan72",  er3, ',')
+writedlm("Simulation results\\er3_scan72",  er3, ',')
 
 
 
@@ -502,7 +502,7 @@ for i in 1:-0.01:0
 
 end
 
-writedlm("sf_scan73",  sf, ',')
+writedlm("Simulation results\\sf_scan73",  sf, ',')
 
 current_matrices = deepcopy(save_current_matrices)
 current_Parameters = deepcopy(save_current_Parameters)
@@ -517,7 +517,7 @@ for i in 1:-0.01:0
     hf = vcat(hf, add)
 
 end
-writedlm("hf_scan73",  hf, ',')
+writedlm("Simulation results\\hf_scan73",  hf, ',')
 
 
 current_matrices = copy(save_current_matrices)
@@ -533,7 +533,7 @@ for i in 0:0.005:1
     sa = vcat(sa, add)
 
 end
-writedlm("sa_scan73",  sa, ',')
+writedlm("Simulation results\\sa_scan73",  sa, ',')
 
 
 current_matrices = copy(save_current_matrices)
@@ -549,7 +549,7 @@ for i in 0:0.005:1
     sb = vcat(sb, add)
 
 end
-writedlm("sb_scan73",  sb, ',')
+writedlm("Simulation results\\sb_scan73",  sb, ',')
 
 
 current_matrices = copy(save_current_matrices)
@@ -566,7 +566,7 @@ for i in 0:0.005:1
     sc = vcat(sc, add)
 
 end
-writedlm("sc_scan73",  sc, ',')
+writedlm("Simulation results\\sc_scan73",  sc, ',')
 
 
 
@@ -583,7 +583,7 @@ for i in 0:0.005:1
     sd = vcat(sd, add)
 
 end
-writedlm("sd_scan73",  sd, ',')
+writedlm("Simulation results\\sd_scan73",  sd, ',')
 
 
 
@@ -601,7 +601,7 @@ for i in 0:0.005:1
 
 
 end
-writedlm("se_scan73",  se, ',')
+writedlm("Simulation results\\se_scan73",  se, ',')
 
 
 
@@ -618,7 +618,7 @@ for i in 0:0.005:1
     he = vcat(he, add)
 
 end
-writedlm("he_scan73",  he, ',')
+writedlm("Simulation results\\he_scan73",  he, ',')
 
 
 current_matrices = copy(save_current_matrices)
@@ -636,7 +636,7 @@ for i in 0:0.005:1
     prot_expression_cost = vcat(prot_expression_cost, add)
 
 end
-writedlm("prot_expression_cost_scan73",  prot_expression_cost, ',')
+writedlm("Simulation results\\prot_expression_cost_scan73",  prot_expression_cost, ',')
 
 
 
@@ -654,7 +654,7 @@ for i in 0:0.02:1
 
 
 end
-writedlm("sm_scan73",  sm, ',')
+writedlm("Simulation results\\sm_scan73",  sm, ',')
 
 
 current_matrices = copy(save_current_matrices)
@@ -679,7 +679,7 @@ for i in 1:-0.01:0
     ee = vcat(ee, add)
 
 end
-writedlm("ee_scan73",  ee, ',')
+writedlm("Simulation results\\ee_scan73",  ee, ',')
 
 
 
@@ -704,7 +704,7 @@ for i in 1:-0.01:0
     add = [i sup dur Y S]
     eh = vcat(eh, add)
 end
-writedlm("eh_scan73",  eh, ',')
+writedlm("Simulation results\\eh_scan73",  eh, ',')
 
 
 
@@ -730,7 +730,7 @@ for i in 1:-0.01:0
     es = vcat(es, add)
 
 end
-writedlm("es_scan73",  es, ',')
+writedlm("Simulation results\\es_scan73",  es, ',')
 
 
 current_matrices = copy(save_current_matrices)
@@ -755,7 +755,7 @@ for i in 1:-0.01:0
     he2 = vcat(he2, add)
 end
 
-writedlm("he2_scan73",  he2, ',')
+writedlm("Simulation results\\he2_scan73",  he2, ',')
 
 current_matrices = copy(save_current_matrices)
 current_Parameters = deepcopy(save_current_Parameters)
@@ -782,7 +782,7 @@ for i in 1:-0.01:0
     shredding_activity_cost = vcat(shredding_activity_cost, add)
 end
 
-writedlm("shredding_activity_cost_scan73",  shredding_activity_cost, ',')
+writedlm("Simulation results\\shredding_activity_cost_scan73",  shredding_activity_cost, ',')
 
 
 current_matrices = deepcopy(save_current_matrices)
@@ -807,7 +807,7 @@ for i in -3:0.05:0
 
 end
 
-writedlm("m1_scan73",  m1, ',')
+writedlm("Simulation results\\m1_scan73",  m1, ',')
 
 current_matrices = copy(save_current_matrices)
 current_Parameters = deepcopy(save_current_Parameters)
@@ -830,7 +830,7 @@ for i in -3:0.05:0
 
 end
 
-writedlm("m2_scan73",  m2, ',')
+writedlm("Simulation results\\m2_scan73",  m2, ',')
 
 current_matrices = copy(save_current_matrices)
 current_Parameters = deepcopy(save_current_Parameters)
@@ -855,7 +855,7 @@ for i in -6:0.05:0
 
 end
 
-writedlm("er1_scan73",  er1, ',')
+writedlm("Simulation results\\er1_scan73",  er1, ',')
 
 
 
@@ -878,7 +878,7 @@ for i in 0:0.01:1
     add = [i sup dur Y S]
     er2 = vcat(er2, add)
 end
-writedlm("er2_scan73",  er2, ',')
+writedlm("Simulation results\\er2_scan73",  er2, ',')
 
 
 current_matrices = copy(save_current_matrices)
@@ -901,7 +901,7 @@ for i in 0.5:0.01:1
     add = [i sup dur Y S]
     er3 = vcat(er3, add)
 end
-writedlm("er3_scan73",  er3, ',')
+writedlm("Simulation results\\er3_scan73",  er3, ',')
 
 
 
@@ -920,7 +920,7 @@ for i in 3:0.5:20
     Rm = vcat(Rm, add)
 end
 
-writedlm("Rm_scan72",  Rm, ',')
+writedlm("Simulation results\\Rm_scan72",  Rm, ',')
 
 
 
@@ -937,4 +937,4 @@ for i in 3:0.5:20
     Rm = vcat(Rm, add)
 end
 
-writedlm("Rm_scan73",  Rm, ',')
+writedlm("Simulation results\\Rm_scan73",  Rm, ',')
