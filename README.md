@@ -55,10 +55,6 @@ If you then want to have an even deeper understanding go to `Jupyter notebooks`>
 After installing Julia and the Jupyter Notebook you can reproduce all results on your local machine by re-running the `Publication figures + code` notebook(folder `Jupyter notebooks`).
 
 
-## License
-
-XXX
-
 
 ## Funding
 
