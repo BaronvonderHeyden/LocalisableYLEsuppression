@@ -6,7 +6,7 @@ René Geci,
 Katie Willis,
 Austin Burt
 
-now available in [PLoS Genetics](www.doi.org/10.1371/journal.pgen.1010550)
+now available in PLoS Genetics: [here](https://doi.org/10.1371/journal.pgen.1010550)
 ___
 
 ## Overview
